@@ -1,0 +1,18 @@
+# .dockerignore
+.git
+.gitignore
+README.md
+.env
+.env.template
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+data/
+logs/
+.DS_Store
+Thumbs.db

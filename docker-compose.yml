@@ -1,0 +1,38 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  kayak-bot:
+    build: .
+    container_name: kayak-trip-planner
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+      - NOAA_API_KEY=${NOAA_API_KEY}
+      - ICE_CHANNEL_ID=${ICE_CHANNEL_ID}
+      - TZ=America/New_York
+    volumes:
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+    networks:
+      - kayak-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  kayak-network:
+    driver: bridge
+
+volumes:
+  kayak-data:
+    driver: local

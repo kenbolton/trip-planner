@@ -1,0 +1,274 @@
+#+title: README
+
+* Usage Instructions
+
+** Building and Running:
+
+1. *Setup Environment:*
+   #+BEGIN_SRC bash
+   cp .env.template .env
+   # Edit .env with your API keys and Discord token
+   #+END_SRC
+
+2. *Build Container:*
+   #+BEGIN_SRC bash
+   chmod +x build.sh
+   ./build.sh
+   #+END_SRC
+
+3. *Deploy:*
+   #+BEGIN_SRC bash
+   chmod +x deploy.sh
+   ./deploy.sh
+   #+END_SRC
+
+4. *Monitor:*
+   #+BEGIN_SRC bash
+   docker-compose logs -f
+   docker-compose ps
+   #+END_SRC
+
+** Management Commands:
++ ~docker-compose up -d~ - Start in background
++ ~docker-compose down~ - Stop container
++ ~docker-compose restart~ - Restart container
++ ~docker-compose logs~ - View logs
++ ~docker exec -it kayak-trip-planner bash~ - Access container shell
+
+** API Key Registration URLs
+
+*** Discord Bot Token
+
+1. Go to the Discord Developer Portal: https://discord.com/developers/applications
+2. Click "New Application" and give your bot a name
+3. Navigate to the "Bot" section in the left sidebar
+4. Click "Add Bot" if not already created
+5. Under the "Token" section, click "Copy" to get your ~DISCORD_TOKEN~
+6. Enable the following bot permissions:
+   + Send Messages
+   + Read Message History
+   + Use Slash Commands
+   + Add Reactions
+   + Embed Links
+
+*** OpenWeather API Key
+
++ *Registration URL:* https://openweathermap.org/api
++ *Steps:*
+  1. Click "Sign Up" in the top right corner
+  2. Create a free account
+  3. Verify your email address
+  4. Navigate to "API keys" in your account dashboard
+  5. Copy the default API key or create a new one
+  6. Use this as your ~OPENWEATHER_API_KEY~
+
++ *Free Tier Limits:*
+  + 1,000 API calls per day
+  + 60 calls per minute
+  + Current weather and 5-day forecast included
+
+*** NOAA API Access
+
++ *API Documentation:* https://api.tidesandcurrents.noaa.gov/api/prod/
++ *Registration:* https://tidesandcurrents.noaa.gov/api/
+
+*Note:* NOAA Tides and Currents API is _free_ and does not require registration for basic usage. However, they recommend registering for higher usage limits.
+
++ *Alternative NOAA Registration (for higher limits):*
+  1. Visit: https://www.ncdc.noaa.gov/cdo-web/token
+  2. Request a free token for weather data access
+  3. Use this token for ~NOAA_API_KEY~ (optional)
+
+*** Marine Weather Alternatives (Optional Enhanced Features)
+
+*** Windy API
++ *URL:* https://api.windy.com/
++ *Features:* Marine weather, wave height, detailed wind data
++ *Pricing:* Free tier available with registration
+
+*** World Weather Online Marine API
++ *URL:* https://www.worldweatheronline.com/developer/api/marine-weather-api.aspx
++ *Features:* Marine-specific forecasts, wave data
++ *Pricing:* Free tier with 500 requests/month
+
+*** Complete Environment File Template
+
+#+BEGIN_SRC bash
+# .env file template with API sources
+# Discord Bot Token - https://discord.com/developers/applications
+DISCORD_TOKEN=your_discord_bot_token_here
+
+# OpenWeather API Key - https://openweathermap.org/api
+OPENWEATHER_API_KEY=your_openweather_api_key_here
+
+# NOAA API Key (optional) - https://tidesandcurrents.noaa.gov/api/
+NOAA_API_KEY=your_noaa_api_key_here
+
+# Discord Channel ID for ICE notifications
+ICE_CHANNEL_ID=your_emergency_channel_id_here
+
+# Optional Marine Weather APIs
+WINDY_API_KEY=your_windy_api_key_here
+MARINE_API_KEY=your_marine_weather_api_key_here
+#+END_SRC
+
+*** Setup Priority Order
+
+1. *Essential (Free):*
+   + Discord Bot Token
+   + OpenWeather API Key
+   + NOAA API (no key needed for basic usage)
+
+2. *Optional (Enhanced Features):*
+   + Windy API for detailed marine conditions
+   + Marine Weather API for wave height data
+
+*** Rate Limits and Considerations
+
+*** OpenWeather Free Tier
++ 1,000 calls/day = ~41 calls/hour
++ Perfect for small Discord servers
++ Upgrade to paid plan for larger communities
+
+*** NOAA API
++ No official rate limits for basic usage
++ Recommended: 1 request per second maximum
++ Very reliable government data source
+
+*** Discord API
++ 10,000 requests per 10 minutes per application
++ More than sufficient for this bot's usage
+
+*** Quick Start Instructions
+
+1. Register for Discord Developer account
+2. Create new application and bot
+3. Copy bot token
+4. Sign up for OpenWeather (free)
+5. Copy API key
+6. Add both to ~.env~ file
+7. Invite bot to your Discord server with proper permissions
+8. Run the application!
+
+*** Cost Breakdown
+
+**** Free Tier Limits:
++ *Discord:* Completely free for bots
++ *OpenWeather:* 1,000 calls/day free (more than sufficient for personal use)
++ *NOAA:* Completely free, rate limited
++ *Geopy (for location lookup):* Uses free OpenStreetMap data
+
+**** Estimated Monthly Costs for Heavy Usage:
++ *OpenWeather Pro:* $40/month for 100,000 calls
++ *Twilio SMS:* ~$0.0075 per SMS for emergency notifications
++ *VPS Hosting:* $5-20/month for running the Docker container
+
+
+*** Quick Setup Checklist
+
+1. [ ] Create Discord application and bot at https://discord.com/developers/applications
+2. [ ] Get OpenWeather API key at https://openweathermap.org/api
+3. [ ] Find your Discord emergency channel ID (enable Developer Mode, right-click channel)
+4. [ ] Create ~.env~ file with your tokens
+5. [ ] Test API connections before deploying
+*** Bot Connection Issue Analysis
+
+Based on your logs, your bot is successfully connecting to Discord's Gateway and coming online. The bot "Trip Planner Bot#9125" is launching properly. However, if you can't see it in your Discord server, here are the most likely causes:
+
+*** Common Issues and Solutions
+
+**** 1. Bot Not Added to Server
+The most common issue is that the bot hasn't been invited to your Discord server yet.
+
+**Steps to invite your bot:**
+1. Go to the Discord Developer Portal
+2. Select your application
+3. Go to OAuth2 > URL Generator
+4. Select scopes: ~bot~
+5. Select permissions your bot needs (at minimum: Send Messages, Read Message History, Use Slash Commands)
+6. Copy the generated URL and open it in your browser
+7. Select your server and authorize the bot
+
+**** 2. Bot Permissions Issue
+Even if the bot is in the server, it might not have proper permissions.
+
+**Check these permissions:**
++ View Channels
++ Send Messages
++ Read Message History
++ Use External Emojis
++ Add Reactions
++ Embed Links
+
+**** 3. Bot Status in Server
+The bot might be offline in your server's member list even though it's connected.
+
+**Verification steps:**
+1. Check your server's member list
+2. Look for the bot under "Offline" members
+3. Ensure the bot has a role that allows it to be visible
+
+*** Quick Debugging Commands
+
+Try these commands in a channel where your bot should be able to respond:
+
+#+BEGIN_SRC
+!kayak helper
+#+END_SRC
+
+or
+
+#+BEGIN_SRC
+!kayak status
+#+END_SRC
+
+*** Bot Invite URL Generator
+
+If you need to generate an invite URL, here's a quick reference for the required permissions:
+
+#+BEGIN_QUOTE
+Required Bot Permissions:
+- Send Messages (2048)
+- Read Message History (65536)
+- Use External Emojis (262144)
+- Add Reactions (64)
+- Embed Links (16384)
+- View Channel (1024)
+
+Combined permission integer: 346112
+#+END_QUOTE
+
+*** Configuration Check
+
+Verify your bot configuration in ~config.py~:
+
+#+BEGIN_SRC python
+# Make sure these are properly set
+DISCORD_TOKEN = "your_bot_token_here"
+# Token should start with something like "MTxxxxx"
+#+END_SRC
+
+*** Server-Side Verification
+
+If the bot is in your server but not responding:
+
+1. Check if the bot appears in the member list (even if offline)
+2. Verify the bot has permission to read the channel you're testing in
+3. Try the command in different channels
+4. Check if the server has any bots disabled or restricted
+
+*** Troubleshooting Steps
+
+**** Step 1: Verify Bot Presence
+Look in your Discord server's member list for "Trip Planner Bot"
+
+**** Step 2: Test Basic Response
+Try: ~@Trip Planner Bot~ (mention the bot directly)
+
+**** Step 3: Check Logs for Errors
+Your current logs show successful connection, but watch for any error messages when you try commands.
+
+**** Step 4: Verify Token
+Ensure your ~DISCORD_TOKEN~ in the config is correct and the bot application is properly configured in the Discord Developer Portal.
+
+The logs indicate your bot is working correctly on the technical side - the issue is most likely related to server invitation or permissions.

@@ -1,0 +1,8 @@
+discord.py==2.3.2
+aiohttp==3.9.1
+python-dotenv==1.0.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+geopy==2.4.1
+asyncio-mqtt==0.11.1
+pytz==2023.3
