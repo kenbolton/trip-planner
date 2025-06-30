@@ -1,8 +1,8 @@
 # tide_service.py
 import aiohttp
-import asyncio
-from datetime import datetime, timedelta
+from datetime import timedelta
 from config import NOAA_TIDES_URL
+
 
 class TideService:
     def __init__(self):

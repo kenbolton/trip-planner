@@ -6,6 +6,7 @@ from weather_service import WeatherService
 from tide_service import TideService
 from current_service import CurrentService
 
+
 class TripPlanner:
     def __init__(self, db):
         self.db = db

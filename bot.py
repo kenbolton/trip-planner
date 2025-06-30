@@ -1,14 +1,23 @@
 # bot.py
-import discord
-from discord.ext import commands
 import asyncio
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
+
+import discord
+from discord.ext import commands
+
+from config import (
+    DISCORD_TOKEN, DB_PATH, LOG_PATH, LOG_LEVEL, WEATHER_API_KEY,
+    # CURRENT_API_KEY,
+)
+
+from current_service import CurrentService
 from database import Database
-from trip_planner import TripPlanner
+from hudson_alert_service import HudsonValleyAlertService
 from ice_system import ICESystem
-from config import *
+from trip_planner import TripPlanner
+from weather_service import WeatherService
 
 
 # Setup logging
@@ -37,6 +46,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!kayak ', intents=intents)
 
+
 # Initialize services
 try:
     # Ensure data directory exists
@@ -46,6 +56,14 @@ try:
     trip_planner = TripPlanner(db)
     ice_system = ICESystem(bot, db)
     logger.info("Services initialized successfully")
+
+    # Initialize Hudson Valley alert service
+    weather_service = WeatherService()
+    current_service = CurrentService()
+    hudson_alerts = HudsonValleyAlertService(
+        bot, weather_service, current_service)
+    logger.info("Hudson Valley alert service initialized")
+
 except Exception as e:
     logger.error(f"Failed to initialize services: {e}")
     raise
@@ -59,9 +77,18 @@ async def on_ready():
     # Set bot status
     activity = discord.Activity(
         type=discord.ActivityType.watching,
-        name="the tides and weather"
+        name="Hudson Valley conditions"
     )
     await bot.change_presence(activity=activity)
+
+    # Start Hudson Valley monitoring
+    await hudson_alerts.start_monitoring()
+
+
+@bot.command(name='hudson')
+async def check_hudson(ctx):
+    """Check current Hudson Valley downwind conditions"""
+    await hudson_alerts.manual_check(ctx)
 
 
 @bot.event
@@ -275,6 +302,15 @@ async def help_command(ctx):
         title="🛶 Kayak Trip Planner Bot Commands",
         description="Plan safe kayaking adventures with weather, tides, and emergency monitoring!",
         color=0x3498DB
+    )
+
+    embed.add_field(
+        name="Hudson Valley Conditions",
+        value=(
+            "`!kayak hudson`\n"
+            "Check current downwind conditions in the Hudson Valley"
+        ),
+        inline=False
     )
 
     embed.add_field(
