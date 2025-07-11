@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True
+intents.reactions = True  # Enable reaction events
 bot = commands.Bot(command_prefix='!kayak ', intents=intents)
 
 
@@ -364,11 +365,16 @@ async def view_trip(ctx, trip_id: int):
 @bot.event
 async def on_reaction_add(reaction, user):
     """Handle reactions on trip view messages"""
-    if user.bot:
+    message = reaction.message
+    logger.info(f"Reaction {reaction.emoji} added by {user.name} (bot={user.bot}, id={user.id}) on message {message.id}")
+    
+    # Skip if it's the bot itself adding reactions
+    # Check both user.bot and compare with bot's own user ID if available
+    if user.bot or (bot.user and user.id == bot.user.id):
+        logger.info(f"Ignoring reaction from bot user: {user.name} (bot={user.bot})")
         return
     
-    message = reaction.message
-    logger.info(f"Reaction {reaction.emoji} added by {user.name} on message {message.id}")
+    logger.info(f"Processing user reaction {reaction.emoji} from {user.name}")
     
     # Handle trip view reactions
     if hasattr(bot, 'trip_views') and message.id in bot.trip_views:
