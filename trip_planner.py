@@ -15,7 +15,25 @@ class TripPlanner:
         self.current_service = CurrentService()
         self.geolocator = Nominatim(user_agent="kayak_trip_planner")
 
-    async def plan_trip(self, location, date, time, duration):
+    def _celsius_to_fahrenheit(self, celsius):
+        """Convert Celsius to Fahrenheit"""
+        return (celsius * 9/5) + 32
+
+    def _ms_to_mph(self, ms):
+        """Convert m/s to mph"""
+        return ms * 2.237
+
+    def _format_temperature(self, celsius):
+        """Format temperature as imperial first, then metric"""
+        fahrenheit = self._celsius_to_fahrenheit(celsius)
+        return f"{fahrenheit:.1f}°F ({celsius:.1f}°C)"
+
+    def _format_wind_speed(self, ms):
+        """Format wind speed as imperial first, then metric"""
+        mph = self._ms_to_mph(ms)
+        return f"{mph:.1f} mph ({ms:.1f} m/s)"
+
+    async def plan_trip(self, location, date, time, duration, trip_name=None):
         """Plan a comprehensive kayak trip"""
         try:
             # Geocode location
@@ -38,6 +56,7 @@ class TripPlanner:
             safety_assessment = self._assess_safety(weather_data, tide_data, current_data)
 
             trip_plan = {
+                'trip_name': trip_name,
                 'location': location,
                 'coordinates': (lat, lon),
                 'date': date,
@@ -95,8 +114,13 @@ class TripPlanner:
 
     def create_trip_embed(self, trip_plan):
         """Create Discord embed for trip plan"""
+        title = f"🛶 Kayak Trip Plan"
+        if trip_plan.get('trip_name'):
+            title += f": {trip_plan['trip_name']}"
+        title += f" - {trip_plan['location']}"
+        
         embed = discord.Embed(
-            title=f"🛶 Kayak Trip Plan - {trip_plan['location']}",
+            title=title,
             description=f"**Date:** {trip_plan['date'].strftime('%Y-%m-%d')}\n**Time:** {trip_plan['time']}\n**Duration:** {trip_plan['duration']} hours",
             color=trip_plan['safety']['color']
         )
@@ -106,7 +130,7 @@ class TripPlanner:
             weather = trip_plan['weather']['current']
             embed.add_field(
                 name="🌤️ Current Weather",
-                value=f"**Temp:** {weather['temp']:.1f}°C\n**Wind:** {weather['wind_speed']:.1f} m/s\n**Conditions:** {weather['description'].title()}",
+                value=f"**Temp:** {self._format_temperature(weather['temp'])}\n**Wind:** {self._format_wind_speed(weather['wind_speed'])}\n**Conditions:** {weather['description'].title()}",
                 inline=True
             )
 
@@ -119,6 +143,18 @@ class TripPlanner:
             embed.add_field(
                 name="🌊 Tides",
                 value=tide_info,
+                inline=True
+            )
+
+        # Currents section
+        if isinstance(trip_plan['currents'], list) and trip_plan['currents']:
+            current_info = "\n".join([
+                f"{current['time']}: {current['speed']:.1f} knots {current['direction']} ({current['type']})"
+                for current in trip_plan['currents'][:4]
+            ])
+            embed.add_field(
+                name="🌊 Currents",
+                value=current_info,
                 inline=True
             )
 
