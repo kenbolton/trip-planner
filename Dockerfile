@@ -22,8 +22,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create directory for database
-RUN mkdir -p /app/data
+# Create directories for data and logs
+RUN mkdir -p /app/data /app/logs
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash kayakbot && \
