@@ -53,6 +53,7 @@ try:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
     db = Database(DB_PATH)
+    db.add_trip_name_column()  # Add trip_name column for existing databases
     trip_planner = TripPlanner(db)
     ice_system = ICESystem(bot, db)
     logger.info("Services initialized successfully")
@@ -223,50 +224,324 @@ async def manage_ice(ctx, action, *args):
         await ctx.send(embed=embed)
 
 
-@bot.command(name='start')
-async def start_trip(ctx, trip_id: int = None):
-    """Start trip monitoring: !kayak start [trip_id]"""
-    if not hasattr(bot, 'temp_trips') or not bot.temp_trips:
-        await ctx.send(
-            "❌ No planned trips found. Plan a trip first with `!kayak plan`")
-        return
+@bot.command(name='list')
+async def list_trips(ctx, limit: int = 10):
+    """List your planned trips: !kayak list [limit]"""
+    try:
+        trips = db.get_user_trips(ctx.author.id, limit)
+        
+        if not trips:
+            await ctx.send("❌ No trips found. Plan your first trip with `!kayak plan`")
+            return
 
-    # For demo, use the most recent trip plan
-    trip_plan = list(bot.temp_trips.values())[-1]
-
-    # Save trip to database
-    saved_trip_id = db.add_trip(
-        ctx.author.id,
-        trip_plan['location'],
-        trip_plan['date'].strftime('%Y-%m-%d'),
-        trip_plan['time'].strftime('%H:%M'),
-        trip_plan['duration'],
-        str(ctx.author.id),  # participants
-        "Auto-ICE"  # emergency contact
-    )
-
-    # Start ICE monitoring
-    asyncio.create_task(
-        ice_system.start_trip_monitoring(
-            saved_trip_id,
-            ctx.author.id,
-            trip_plan['duration'],
-            ctx.channel
+        embed = discord.Embed(
+            title="🛶 Your Planned Trips",
+            description=f"Showing {len(trips)} most recent trips",
+            color=0x3498DB
         )
-    )
 
-    embed = discord.Embed(
-        title="🛶 Trip Started!",
-        description=f"ICE monitoring activated for {trip_plan['duration']} hours",
-        color=0x00FF00
-    )
-    embed.add_field(
-        name="Important",
-        value="You'll receive a check-in reminder when your trip duration expires. Make sure to respond!",
-        inline=False
-    )
+        for trip in trips:
+            # trip format: (id, user_id, location, trip_date, start_time, duration, participants, emergency_contact, trip_name, created_at)
+            trip_id, _, location, trip_date, start_time, duration, _, _, trip_name, created_at = trip
+            
+            trip_title = f"Trip #{trip_id}"
+            if trip_name:
+                trip_title += f": {trip_name}"
+            
+            trip_info = f"**Location:** {location}\n**Date:** {trip_date}\n**Time:** {start_time}\n**Duration:** {duration}h"
+            
+            # Check if trip is today
+            from datetime import datetime, date
+            today = date.today()
+            trip_date_obj = datetime.strptime(trip_date, '%Y-%m-%d').date()
+            
+            if trip_date_obj == today:
+                trip_info += "\n🟢 **Available for start today**"
+            elif trip_date_obj < today:
+                trip_info += "\n🔴 **Past trip**"
+            else:
+                trip_info += f"\n🟡 **Future trip**"
+            
+            embed.add_field(
+                name=trip_title,
+                value=trip_info,
+                inline=False
+            )
 
-    await ctx.send(embed=embed)
+        embed.set_footer(text="Use `!kayak view <trip_id>` to see details and start a trip")
+        await ctx.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ Error listing trips: {str(e)}")
+
+
+@bot.command(name='view')
+async def view_trip(ctx, trip_id: int):
+    """View trip details with start/stop options: !kayak view <trip_id>"""
+    try:
+        trip = db.get_trip_by_id(trip_id, ctx.author.id)
+        
+        if not trip:
+            await ctx.send(f"❌ Trip #{trip_id} not found or you don't have permission to view it")
+            return
+
+        # trip format: (id, user_id, location, trip_date, start_time, duration, participants, emergency_contact, trip_name, created_at)
+        trip_id, _, location, trip_date, start_time, duration, participants, emergency_contact, trip_name, created_at = trip
+        
+        title = f"🛶 Trip #{trip_id}"
+        if trip_name:
+            title += f": {trip_name}"
+        
+        embed = discord.Embed(
+            title=title,
+            color=0x3498DB
+        )
+
+        embed.add_field(name="📍 Location", value=location, inline=True)
+        embed.add_field(name="📅 Date", value=trip_date, inline=True)
+        embed.add_field(name="🕐 Time", value=start_time, inline=True)
+        embed.add_field(name="⏱️ Duration", value=f"{duration} hours", inline=True)
+        embed.add_field(name="👥 Participants", value=participants or "Not specified", inline=True)
+        embed.add_field(name="🚨 Emergency Contact", value=emergency_contact or "Not specified", inline=True)
+        
+        # Check trip status
+        from datetime import datetime, date
+        today = date.today()
+        trip_date_obj = datetime.strptime(trip_date, '%Y-%m-%d').date()
+        
+        # Check if trip is currently active
+        is_active = trip_id in ice_system.active_trips
+        
+        if is_active:
+            embed.add_field(
+                name="🟢 Trip Status", 
+                value="**ACTIVE** - ICE monitoring in progress", 
+                inline=False
+            )
+        elif trip_date_obj == today:
+            embed.add_field(
+                name="🟡 Trip Status", 
+                value="**Ready to start** - Click ▶️ to begin ICE monitoring", 
+                inline=False
+            )
+        elif trip_date_obj < today:
+            embed.add_field(
+                name="🔴 Trip Status", 
+                value="**Past trip** - Cannot start monitoring", 
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="🟡 Trip Status", 
+                value=f"**Future trip** - Can start on {trip_date}", 
+                inline=False
+            )
+
+        message = await ctx.send(embed=embed)
+        
+        # Add reaction buttons based on trip status
+        if is_active:
+            await message.add_reaction("⏹️")  # Stop trip
+            await message.add_reaction("✅")  # Manual check-in
+        elif trip_date_obj == today:
+            await message.add_reaction("▶️")  # Start trip
+        
+        # Store trip info for reaction handling
+        if not hasattr(bot, 'trip_views'):
+            bot.trip_views = {}
+        bot.trip_views[message.id] = {
+            'trip_id': trip_id,
+            'user_id': ctx.author.id,
+            'is_active': is_active,
+            'can_start': trip_date_obj == today
+        }
+
+    except Exception as e:
+        await ctx.send(f"❌ Error viewing trip: {str(e)}")
+
+
+# Handle reaction events for trip view
+@bot.event
+async def on_reaction_add(user, reaction):
+    """Handle reactions on trip view messages"""
+    if user.bot:
+        return
+    
+    message = reaction.message
+    
+    # Handle trip view reactions
+    if hasattr(bot, 'trip_views') and message.id in bot.trip_views:
+        trip_info = bot.trip_views[message.id]
+        
+        if user.id != trip_info['user_id']:
+            return  # Only trip owner can interact
+        
+        if str(reaction.emoji) == "▶️" and trip_info['can_start']:
+            # Start trip
+            trip_id = trip_info['trip_id']
+            trip = db.get_trip_by_id(trip_id)
+            
+            if trip:
+                # Start ICE monitoring
+                duration = trip[5]  # duration is at index 5
+                asyncio.create_task(
+                    ice_system.start_trip_monitoring(
+                        trip_id,
+                        user.id,
+                        duration,
+                        message.channel
+                    )
+                )
+                
+                embed = discord.Embed(
+                    title="🛶 Trip Started!",
+                    description=f"ICE monitoring activated for Trip #{trip_id}",
+                    color=0x00FF00
+                )
+                await message.channel.send(embed=embed)
+                
+                # Update the view
+                trip_info['is_active'] = True
+                trip_info['can_start'] = False
+        
+        elif str(reaction.emoji) == "⏹️" and trip_info['is_active']:
+            # Stop trip
+            trip_id = trip_info['trip_id']
+            if trip_id in ice_system.active_trips:
+                await ice_system._confirm_safe_return(trip_id)
+                
+                embed = discord.Embed(
+                    title="⏹️ Trip Stopped",
+                    description=f"ICE monitoring deactivated for Trip #{trip_id}",
+                    color=0x00FF00
+                )
+                await message.channel.send(embed=embed)
+                
+                # Update the view
+                trip_info['is_active'] = False
+        
+        elif str(reaction.emoji) == "✅" and trip_info['is_active']:
+            # Manual check-in
+            trip_id = trip_info['trip_id']
+            if trip_id in ice_system.active_trips:
+                await ice_system._confirm_safe_return(trip_id)
+                
+                embed = discord.Embed(
+                    title="✅ Manual Check-In Successful",
+                    description="Thanks for checking in! ICE monitoring has been deactivated.",
+                    color=0x00FF00
+                )
+                await message.channel.send(embed=embed)
+                
+                # Update the view
+                trip_info['is_active'] = False
+
+    # Handle plan reactions (existing functionality)
+    if hasattr(bot, 'temp_trips') and message.id in bot.temp_trips:
+        trip_plan = bot.temp_trips[message.id]
+        
+        if str(reaction.emoji) == "📅":
+            # Save trip
+            saved_trip_id = db.add_trip(
+                user.id,
+                trip_plan['location'],
+                trip_plan['date'].strftime('%Y-%m-%d'),
+                trip_plan['time'].strftime('%H:%M'),
+                trip_plan['duration'],
+                str(user.id),  # participants
+                "Auto-ICE",  # emergency contact
+                trip_plan.get('trip_name')
+            )
+            
+            embed = discord.Embed(
+                title="📅 Trip Saved!",
+                description=f"Trip saved as #{saved_trip_id}. Use `!kayak view {saved_trip_id}` to start when ready.",
+                color=0x00FF00
+            )
+            await message.channel.send(embed=embed)
+            
+        elif str(reaction.emoji) == "🚨":
+            # Quick start trip
+            saved_trip_id = db.add_trip(
+                user.id,
+                trip_plan['location'],
+                trip_plan['date'].strftime('%Y-%m-%d'),
+                trip_plan['time'].strftime('%H:%M'),
+                trip_plan['duration'],
+                str(user.id),  # participants
+                "Auto-ICE",  # emergency contact
+                trip_plan.get('trip_name')
+            )
+            
+            # Start ICE monitoring
+            asyncio.create_task(
+                ice_system.start_trip_monitoring(
+                    saved_trip_id,
+                    user.id,
+                    trip_plan['duration'],
+                    message.channel
+                )
+            )
+            
+            embed = discord.Embed(
+                title="🛶 Trip Started!",
+                description=f"Trip saved as #{saved_trip_id} and ICE monitoring activated!",
+                color=0x00FF00
+            )
+            await message.channel.send(embed=embed)
+
+
+@bot.command(name='start')
+async def start_trip(ctx, trip_id: int):
+    """Start trip monitoring: !kayak start <trip_id>"""
+    try:
+        trip = db.get_trip_by_id(trip_id, ctx.author.id)
+        
+        if not trip:
+            await ctx.send(f"❌ Trip #{trip_id} not found or you don't have permission to start it")
+            return
+        
+        # Check if trip is today
+        from datetime import datetime, date
+        today = date.today()
+        trip_date = trip[3]  # trip_date is at index 3
+        trip_date_obj = datetime.strptime(trip_date, '%Y-%m-%d').date()
+        
+        if trip_date_obj != today:
+            await ctx.send(f"❌ Can only start trips scheduled for today. Trip is scheduled for {trip_date}")
+            return
+        
+        # Check if already active
+        if trip_id in ice_system.active_trips:
+            await ctx.send(f"❌ Trip #{trip_id} is already active")
+            return
+        
+        # Start ICE monitoring
+        duration = trip[5]  # duration is at index 5
+        asyncio.create_task(
+            ice_system.start_trip_monitoring(
+                trip_id,
+                ctx.author.id,
+                duration,
+                ctx.channel
+            )
+        )
+
+        embed = discord.Embed(
+            title="🛶 Trip Started!",
+            description=f"ICE monitoring activated for Trip #{trip_id} ({duration} hours)",
+            color=0x00FF00
+        )
+        embed.add_field(
+            name="Important",
+            value="You'll receive a check-in reminder when your trip duration expires. Make sure to respond!",
+            inline=False
+        )
+
+        await ctx.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ Error starting trip: {str(e)}")
 
 
 @bot.command(name='checkin')
@@ -324,6 +599,16 @@ async def help_command(ctx):
     )
 
     embed.add_field(
+        name="Trip Management",
+        value=(
+            "`!kayak list [limit]` - List your planned trips\n"
+            "`!kayak view <trip_id>` - View trip details with start/stop options\n"
+            "`!kayak start <trip_id>` - Start ICE monitoring for a trip"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
         name="Emergency Contacts",
         value=(
             "`!kayak ice add \"Name\" \"Phone\" \"Relation\" [primary]`\n"
@@ -335,7 +620,6 @@ async def help_command(ctx):
     embed.add_field(
         name="Trip Monitoring",
         value=(
-            "`!kayak start` - Begin ICE monitoring\n"
             "`!kayak checkin` - Manual check-in\n"
             "`!kayak status` - Bot health status"
         ),
