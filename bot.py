@@ -613,6 +613,16 @@ async def help_command(ctx):
     )
 
     embed.add_field(
+        name="Trip Management",
+        value=(
+            "`!kayak list [limit]` - List your planned trips\n"
+            "`!kayak view <trip_id>` - View trip details with start/stop options\n"
+            "`!kayak start <trip_id>` - Start ICE monitoring for a trip"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
         name="Emergency Contacts",
         value=(
             "`!kayak ice add \"Name\" \"Phone\" \"Relation\" [primary]`\n"
