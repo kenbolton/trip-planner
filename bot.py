@@ -595,7 +595,7 @@ async def help_command(ctx):
             "Plan a kayak trip with weather and conditions\n"
             "(Trip name is optional)\n"
             "In the trip view, you can start ICE monitoring with reactions.\n"
-            "Use the `!kayak start <trip_id>` command to start monitoring for a saved trip.\n""
+            "Use the `!kayak start <trip_id>` command to start monitoring for a saved trip.\n"
             "📅 (Calendar): Saves the trip to database and shows a confirmation message with the trip ID\n"
             "🚨 (Emergency): Saves the trip AND immediately starts ICE monitoring"
         ),
