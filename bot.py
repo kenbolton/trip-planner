@@ -364,8 +364,8 @@ async def view_trip(ctx, trip_id: int):
 @bot.event
 async def on_reaction_add(reaction, user):
     """Handle reactions on trip view messages"""
-    if user.bot:
-        return
+    # if user.bot:
+    #     return
     
     message = reaction.message
     logger.info(f"Reaction {reaction.emoji} added by {user.name} on message {message.id}")
