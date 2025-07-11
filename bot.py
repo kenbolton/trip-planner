@@ -90,7 +90,7 @@ async def on_ready():
 # Add a simple test event handler to debug reactions
 @bot.event
 async def on_raw_reaction_add(payload):
-    """Raw reaction event for debugging"""
+    """Raw reaction event for debugging and handling reactions"""
     logger.info(f"=== RAW REACTION EVENT ===")
     logger.info(f"Emoji: {payload.emoji}")
     logger.info(f"User ID: {payload.user_id}")
@@ -98,6 +98,178 @@ async def on_raw_reaction_add(payload):
     logger.info(f"Channel ID: {payload.channel_id}")
     logger.info(f"Guild ID: {payload.guild_id}")
     logger.info(f"=== END RAW REACTION EVENT ===")
+    
+    # Skip bot's own reactions
+    if bot.user and payload.user_id == bot.user.id:
+        logger.info(f"Ignoring reaction from bot itself")
+        return
+    
+    # Get the channel and message
+    try:
+        if payload.guild_id:
+            guild = bot.get_guild(payload.guild_id)
+            if guild:
+                channel = guild.get_channel(payload.channel_id)
+            else:
+                return
+        else:
+            channel = bot.get_channel(payload.channel_id)
+        
+        if not channel:
+            logger.warning(f"Could not find channel {payload.channel_id}")
+            return
+            
+        # Use the correct method to fetch message based on channel type
+        if hasattr(channel, 'fetch_message'):
+            message = await channel.fetch_message(payload.message_id)
+        else:
+            logger.warning(f"Channel {payload.channel_id} does not support fetch_message")
+            return
+            
+        user = bot.get_user(payload.user_id)
+        
+        if not user:
+            logger.warning(f"Could not find user {payload.user_id}")
+            return
+            
+        logger.info(f"PROCESSING user reaction {payload.emoji} from {user.name}")
+        
+        # Call the original reaction handler logic
+        await handle_reaction_logic(message, user, str(payload.emoji))
+        
+    except Exception as e:
+        logger.error(f"Error in raw reaction handler: {e}")
+
+
+async def handle_reaction_logic(message, user, emoji_str):
+    """Handle the actual reaction logic (extracted from on_reaction_add)"""
+    try:
+        # Handle trip view reactions
+        if hasattr(bot, 'trip_views') and message.id in bot.trip_views:
+            trip_info = bot.trip_views[message.id]
+            
+            if user.id != trip_info['user_id']:
+                return  # Only trip owner can interact
+            
+            if emoji_str == "▶️" and trip_info['can_start']:
+                # Start trip
+                trip_id = trip_info['trip_id']
+                trip = db.get_trip_by_id(trip_id)
+                
+                if trip:
+                    # Start ICE monitoring
+                    duration = trip[5]  # duration is at index 5
+                    asyncio.create_task(
+                        ice_system.start_trip_monitoring(
+                            trip_id,
+                            user.id,
+                            duration,
+                            message.channel
+                        )
+                    )
+                    
+                    embed = discord.Embed(
+                        title="🛶 Trip Started!",
+                        description=f"ICE monitoring activated for Trip #{trip_id}",
+                        color=0x00FF00
+                    )
+                    await message.channel.send(embed=embed)
+                    
+                    # Update the view
+                    trip_info['is_active'] = True
+                    trip_info['can_start'] = False
+            
+            elif emoji_str == "⏹️" and trip_info['is_active']:
+                # Stop trip
+                trip_id = trip_info['trip_id']
+                if trip_id in ice_system.active_trips:
+                    await ice_system._confirm_safe_return(trip_id)
+                    
+                    embed = discord.Embed(
+                        title="⏹️ Trip Stopped",
+                        description=f"ICE monitoring deactivated for Trip #{trip_id}",
+                        color=0x00FF00
+                    )
+                    await message.channel.send(embed=embed)
+                    
+                    # Update the view
+                    trip_info['is_active'] = False
+            
+            elif emoji_str == "✅" and trip_info['is_active']:
+                # Manual check-in
+                trip_id = trip_info['trip_id']
+                if trip_id in ice_system.active_trips:
+                    await ice_system._confirm_safe_return(trip_id)
+                    
+                    embed = discord.Embed(
+                        title="✅ Manual Check-In Successful",
+                        description="Thanks for checking in! ICE monitoring has been deactivated.",
+                        color=0x00FF00
+                    )
+                    await message.channel.send(embed=embed)
+                    
+                    # Update the view
+                    trip_info['is_active'] = False
+
+        # Handle plan reactions (existing functionality)
+        if hasattr(bot, 'temp_trips') and message.id in bot.temp_trips:
+            trip_plan = bot.temp_trips[message.id]
+            logger.info(f"Found temp trip for message {message.id}, reaction: {emoji_str}")
+            
+            if emoji_str == "📅":
+                # Save trip
+                logger.info(f"Saving trip for user {user.id}")
+                saved_trip_id = db.add_trip(
+                    user.id,
+                    trip_plan['location'],
+                    trip_plan['date'].strftime('%Y-%m-%d'),
+                    trip_plan['time'].strftime('%H:%M'),
+                    trip_plan['duration'],
+                    str(user.id),  # participants
+                    "Auto-ICE",  # emergency contact
+                    trip_plan.get('trip_name')
+                )
+                logger.info(f"Trip saved with ID: {saved_trip_id}")
+                
+                embed = discord.Embed(
+                    title="📅 Trip Saved!",
+                    description=f"Trip saved as #{saved_trip_id}. Use `!kayak view {saved_trip_id}` to start when ready.",
+                    color=0x00FF00
+                )
+                await message.channel.send(embed=embed)
+                
+            elif emoji_str == "🚨":
+                # Quick start trip
+                saved_trip_id = db.add_trip(
+                    user.id,
+                    trip_plan['location'],
+                    trip_plan['date'].strftime('%Y-%m-%d'),
+                    trip_plan['time'].strftime('%H:%M'),
+                    trip_plan['duration'],
+                    str(user.id),  # participants
+                    "Auto-ICE",  # emergency contact
+                    trip_plan.get('trip_name')
+                )
+                
+                # Start ICE monitoring
+                asyncio.create_task(
+                    ice_system.start_trip_monitoring(
+                        saved_trip_id,
+                        user.id,
+                        trip_plan['duration'],
+                        message.channel
+                    )
+                )
+                
+                embed = discord.Embed(
+                    title="🛶 Trip Started!",
+                    description=f"Trip saved as #{saved_trip_id} and ICE monitoring activated!",
+                    color=0x00FF00
+                )
+                await message.channel.send(embed=embed)
+                
+    except Exception as e:
+        logger.error(f"Error in reaction logic handler: {e}")
 
 
 @bot.command(name='hudson')
