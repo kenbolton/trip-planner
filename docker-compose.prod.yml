@@ -7,11 +7,7 @@ services:
     volumes:
       - ./data:/data
       - ./logs:/logs
-    command: sh -c "
-      mkdir -p /data /logs &&
-      chown -R 1000:1000 /data /logs &&
-      chmod -R 755 /data /logs
-    "
+    command: sh -c "mkdir -p /data /logs && chown -R 1000:1000 /data /logs && chmod -R 755 /data /logs"
     
   kayak-bot:
     build: 
