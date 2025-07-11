@@ -87,6 +87,19 @@ async def on_ready():
     await hudson_alerts.start_monitoring()
 
 
+# Add a simple test event handler to debug reactions
+@bot.event
+async def on_raw_reaction_add(payload):
+    """Raw reaction event for debugging"""
+    logger.info(f"=== RAW REACTION EVENT ===")
+    logger.info(f"Emoji: {payload.emoji}")
+    logger.info(f"User ID: {payload.user_id}")
+    logger.info(f"Message ID: {payload.message_id}")
+    logger.info(f"Channel ID: {payload.channel_id}")
+    logger.info(f"Guild ID: {payload.guild_id}")
+    logger.info(f"=== END RAW REACTION EVENT ===")
+
+
 @bot.command(name='hudson')
 async def check_hudson(ctx):
     """Check current Hudson Valley downwind conditions"""
@@ -365,16 +378,25 @@ async def view_trip(ctx, trip_id: int):
 @bot.event
 async def on_reaction_add(reaction, user):
     """Handle reactions on trip view messages"""
-    message = reaction.message
-    logger.info(f"Reaction {reaction.emoji} added by {user.name} (bot={user.bot}, id={user.id}) on message {message.id}")
-    
-    # Skip if it's the bot itself adding reactions
-    # Check both user.bot and compare with bot's own user ID if available
-    if user.bot or (bot.user and user.id == bot.user.id):
-        logger.info(f"Ignoring reaction from bot user: {user.name} (bot={user.bot})")
+    try:
+        message = reaction.message
+        logger.info(f"=== REACTION EVENT DETECTED ===")
+        logger.info(f"Emoji: {reaction.emoji}")
+        logger.info(f"User: {user.name} (ID: {user.id})")
+        logger.info(f"Is Bot: {user.bot}")
+        logger.info(f"Message ID: {message.id}")
+        logger.info(f"Message Author: {message.author}")
+        logger.info(f"Bot User: {bot.user.name if bot.user else 'None'} (ID: {bot.user.id if bot.user else 'None'})")
+        
+        # Check if this is the bot's own reaction
+        if user.bot:
+            logger.info(f"Ignoring reaction from bot user: {user.name} (bot={user.bot})")
+            return
+        
+        logger.info(f"PROCESSING user reaction {reaction.emoji} from {user.name}")
+    except Exception as e:
+        logger.error(f"Error in reaction event handler: {e}")
         return
-    
-    logger.info(f"Processing user reaction {reaction.emoji} from {user.name}")
     
     # Handle trip view reactions
     if hasattr(bot, 'trip_views') and message.id in bot.trip_views:
