@@ -362,12 +362,13 @@ async def view_trip(ctx, trip_id: int):
 
 # Handle reaction events for trip view
 @bot.event
-async def on_reaction_add(user, reaction):
+async def on_reaction_add(reaction, user):
     """Handle reactions on trip view messages"""
     if user.bot:
         return
     
     message = reaction.message
+    logger.info(f"Reaction {reaction.emoji} added by {user.name} on message {message.id}")
     
     # Handle trip view reactions
     if hasattr(bot, 'trip_views') and message.id in bot.trip_views:
@@ -439,9 +440,11 @@ async def on_reaction_add(user, reaction):
     # Handle plan reactions (existing functionality)
     if hasattr(bot, 'temp_trips') and message.id in bot.temp_trips:
         trip_plan = bot.temp_trips[message.id]
+        logger.info(f"Found temp trip for message {message.id}, reaction: {reaction.emoji}")
         
         if str(reaction.emoji) == "📅":
             # Save trip
+            logger.info(f"Saving trip for user {user.id}")
             saved_trip_id = db.add_trip(
                 user.id,
                 trip_plan['location'],
@@ -452,6 +455,7 @@ async def on_reaction_add(user, reaction):
                 "Auto-ICE",  # emergency contact
                 trip_plan.get('trip_name')
             )
+            logger.info(f"Trip saved with ID: {saved_trip_id}")
             
             embed = discord.Embed(
                 title="📅 Trip Saved!",
