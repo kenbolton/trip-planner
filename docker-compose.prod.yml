@@ -1,22 +1,12 @@
 version: '3.8'
 
 services:
-  # Init container to fix permissions
-  init-permissions:
-    image: alpine:latest
-    volumes:
-      - ./data:/data
-      - ./logs:/logs
-    command: sh -c "mkdir -p /data /logs && chown -R 1000:1000 /data /logs && chmod -R 755 /data /logs"
-    
   kayak-bot:
     build: 
       context: .
       dockerfile: Dockerfile
     container_name: kayak-trip-planner-prod
     restart: always
-    depends_on:
-      - init-permissions
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
       - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
