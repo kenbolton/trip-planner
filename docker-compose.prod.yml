@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  kayak-bot:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: kayak-trip-planner-prod
+    restart: always
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
+      - NOAA_API_KEY=${NOAA_API_KEY}
+      - ICE_CHANNEL_ID=${ICE_CHANNEL_ID}
+      - TZ=America/New_York
+      - PYTHONPATH=/app
+    volumes:
+      - ./data:/app/data:rw
+      - ./logs:/app/logs:rw
+    networks:
+      - kayak-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    user: kayakbot
+
+networks:
+  kayak-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: kayak-prod-br0
+
+volumes:
+  kayak-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
