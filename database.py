@@ -23,6 +23,7 @@ class Database:
                 duration INTEGER NOT NULL,
                 participants TEXT,
                 emergency_contact TEXT,
+                trip_name TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
@@ -42,14 +43,14 @@ class Database:
         conn.commit()
         conn.close()
 
-    def add_trip(self, user_id, location, trip_date, start_time, duration, participants, emergency_contact):
+    def add_trip(self, user_id, location, trip_date, start_time, duration, participants, emergency_contact, trip_name=None):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
 
         cursor.execute('''
-            INSERT INTO trips (user_id, location, trip_date, start_time, duration, participants, emergency_contact)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, location, trip_date, start_time, duration, participants, emergency_contact))
+            INSERT INTO trips (user_id, location, trip_date, start_time, duration, participants, emergency_contact, trip_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, location, trip_date, start_time, duration, participants, emergency_contact, trip_name))
 
         trip_id = cursor.lastrowid
         conn.commit()
@@ -80,3 +81,48 @@ class Database:
         contacts = cursor.fetchall()
         conn.close()
         return contacts
+
+    def get_user_trips(self, user_id, limit=None):
+        """Get trips for a specific user"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        query = 'SELECT * FROM trips WHERE user_id = ? ORDER BY created_at DESC'
+        params = (user_id,)
+        
+        if limit:
+            query += ' LIMIT ?'
+            params = (user_id, limit)
+
+        cursor.execute(query, params)
+        trips = cursor.fetchall()
+        conn.close()
+        return trips
+
+    def get_trip_by_id(self, trip_id, user_id=None):
+        """Get a specific trip by ID, optionally filtered by user"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        if user_id:
+            cursor.execute('SELECT * FROM trips WHERE id = ? AND user_id = ?', (trip_id, user_id))
+        else:
+            cursor.execute('SELECT * FROM trips WHERE id = ?', (trip_id,))
+        
+        trip = cursor.fetchone()
+        conn.close()
+        return trip
+
+    def add_trip_name_column(self):
+        """Add trip_name column if it doesn't exist"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute('ALTER TABLE trips ADD COLUMN trip_name TEXT')
+            conn.commit()
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+        
+        conn.close()
