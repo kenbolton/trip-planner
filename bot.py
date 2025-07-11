@@ -142,8 +142,8 @@ async def bot_status(ctx):
 
 
 @bot.command(name='plan')
-async def plan_trip(ctx, location, date_str, time_str, duration: int):
-    """Plan a kayak trip: !kayak plan "Boston Harbor" 2024-06-15 09:00 4"""
+async def plan_trip(ctx, location, date_str, time_str, duration: int, *, trip_name=None):
+    """Plan a kayak trip: !kayak plan "Boston Harbor" 2024-06-15 09:00 4 "Morning Harbor Paddle" """
     try:
         # Parse date and time
         trip_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -151,7 +151,7 @@ async def plan_trip(ctx, location, date_str, time_str, duration: int):
 
         # Plan the trip
         trip_plan, error = await trip_planner.plan_trip(
-            location, trip_date, trip_time, duration)
+            location, trip_date, trip_time, duration, trip_name)
 
         if error:
             await ctx.send(f"❌ Error: {error}")
