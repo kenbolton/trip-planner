@@ -316,8 +316,9 @@ async def help_command(ctx):
     embed.add_field(
         name="Trip Planning",
         value=(
-            "`!kayak plan \"Location\" YYYY-MM-DD HH:MM hours`\n"
-            "Plan a kayak trip with weather and conditions"
+            "`!kayak plan \"Location\" YYYY-MM-DD HH:MM hours \"Trip Name\"`\n"
+            "Plan a kayak trip with weather and conditions\n"
+            "(Trip name is optional)"
         ),
         inline=False
     )
