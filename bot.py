@@ -126,8 +126,12 @@ async def on_raw_reaction_add(payload):
             logger.warning(f"Channel {payload.channel_id} does not support fetch_message")
             return
             
-        user = bot.get_user(payload.user_id)
-        
+        # Fetch user instead of getting from cache
+        try:
+            user = await bot.fetch_user(payload.user_id)
+        except discord.NotFound:
+            user = bot.get_user(payload.user_id)
+            
         if not user:
             logger.warning(f"Could not find user {payload.user_id}")
             return
